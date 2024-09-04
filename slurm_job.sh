@@ -1,3 +1,5 @@
+#!/bin/sh
+
 #SBATCH --account             sxq@v100
 #SBATCH --constraint          v100-32g
 #SBATCH --cpus-per-task       10
