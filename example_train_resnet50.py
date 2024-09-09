@@ -19,6 +19,13 @@ import presets.classification.presets as presets
 from presets.classification.sampler import RASampler
 from presets.classification.transforms import get_mixup_cutmix
 
+def get_param_model(args, num_classes) :
+
+    if args.model == "resnet50" :
+        model = get_model(args.model, weights=args.weights, num_classes=num_classes)
+    
+    return model
+                          
 # Use standard metric logger from torchvision but can be easily removed
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, args, model_ema=None, scaler=None):
     model.train()
@@ -251,7 +258,7 @@ def main(args) :
         dataset_test, batch_size=args.batch_size, sampler=test_sampler, num_workers=args.workers, pin_memory=True
     )
     # Model Creation
-    model = get_model(args)
+    model = get_param_model(args, num_classes)
     model.to(device)
 
     if args.distributed and args.sync_bn:
