@@ -410,4 +410,5 @@ def main(args) :
         logger.finish()
 if __name__ == "__main__" :
     args, unknown_args = get_classification_argsparse().parse_known_args()
+    args.name = "test"
     main(args)
