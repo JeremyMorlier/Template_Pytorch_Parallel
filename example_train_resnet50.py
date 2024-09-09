@@ -408,6 +408,6 @@ def main(args) :
     # Close Logger
     if utils.is_main_process():
         logger.finish()
-if __name__ == "__main" :
+if __name__ == "__main__" :
     args, unknown_args = get_classification_argsparse().parse_known_args()
     main(args)
