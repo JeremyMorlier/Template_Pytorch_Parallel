@@ -199,7 +199,7 @@ def main(args) :
     utils.init_distributed_mode(args)
 
     # Signal Handler to automatically relaunch slurm job
-    utils.init_signal_handler(args)
+    utils.init_signal_handler()
 
     device = torch.device(args.device)
 
