@@ -30,8 +30,8 @@ def get_param_model(args, num_classes) :
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, args, model_ema=None, scaler=None):
     model.train()
     metric_logger = ref.MetricLogger(delimiter="  ")
-    metric_logger.add_meter("lr", utils.SmoothedValue(window_size=1, fmt="{value}"))
-    metric_logger.add_meter("img/s", utils.SmoothedValue(window_size=10, fmt="{value}"))
+    metric_logger.add_meter("lr", ref.SmoothedValue(window_size=1, fmt="{value}"))
+    metric_logger.add_meter("img/s", ref.SmoothedValue(window_size=10, fmt="{value}"))
 
     header = f"Epoch: [{epoch}]"
     for i, (image, target) in enumerate(metric_logger.log_every(data_loader, args.print_freq, header)):
@@ -62,13 +62,14 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, arg
                 # Reset ema buffer to keep copying weights during warmup period
                 model_ema.n_averaged.fill_(0)
 
-        acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
+        acc1, acc5 = ref.accuracy(output, target, topk=(1, 5))
         batch_size = image.shape[0]
         metric_logger.update(loss=loss.item(), lr=optimizer.param_groups[0]["lr"])
         metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
         metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
         metric_logger.meters["img/s"].update(batch_size / (time.time() - start_time))
-
+    
+    return {"loss":metric_logger.loss.global_avg, "train_acc1":metric_logger.acc1.global_avg, "train_acc5":metric_logger.acc5.global_avg}
 
 def evaluate(model, criterion, data_loader, device, print_freq=100, log_suffix=""):
     model.eval()
@@ -83,7 +84,7 @@ def evaluate(model, criterion, data_loader, device, print_freq=100, log_suffix="
             output = model(image)
             loss = criterion(output, target)
 
-            acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
+            acc1, acc5 = ref.accuracy(output, target, topk=(1, 5))
             # FIXME need to take into account that the datasets
             # could have been padded in distributed setup
             batch_size = image.shape[0]
@@ -110,7 +111,7 @@ def evaluate(model, criterion, data_loader, device, print_freq=100, log_suffix="
     metric_logger.synchronize_between_processes()
 
     print(f"{header} Acc@1 {metric_logger.acc1.global_avg:.3f} Acc@5 {metric_logger.acc5.global_avg:.3f}")
-    return metric_logger.acc1.global_avg
+    return metric_logger.acc1.global_avg, metric_logger.acc5.global_avg
 
 def load_data(traindir, valdir, args):
     # Data loading code
@@ -380,10 +381,9 @@ def main(args) :
             if utils.is_main_process() :
                 logger.log(train_results)
             
-            acc1_epoch, acc5_epoch = evaluate(model, criterion, data_loader_test, device=device)
-
+            eval_acc1, eval_acc5 = evaluate(model, criterion, data_loader_test, device=device)
             if utils.is_main_process() :
-                logger.log({"val global acc1":acc1_epoch, "val global acc5":acc5_epoch})
+                logger.log({"eval_acc1": eval_acc1, "eval_acc5": eval_acc5})
 
             if model_ema:
                 acc1_ema, acc5_ema = evaluate(model_ema, criterion, data_loader_test, device=device, log_suffix="EMA")
@@ -397,8 +397,6 @@ def main(args) :
                     "lr_scheduler": lr_scheduler.state_dict(),
                     "epoch": epoch,
                     "args": args,
-                    "acc1_epoch": acc1_epoch,
-                    "acc5_epoch": acc5_epoch,
                 }
                 if model_ema:
                     checkpoint["model_ema"] = model_ema.state_dict()
@@ -406,8 +404,8 @@ def main(args) :
                     checkpoint["scaler"] = scaler.state_dict()
                 if utils.is_main_process() :
                     checkpoint["wandb_run_id"] = logger.id
-                if acc1_epoch >= best_acc1 :
-                    best_acc1 = acc1_epoch
+                if eval_acc1 >= best_acc1 :
+                    best_acc1 = eval_acc1
                     utils.save_on_master(checkpoint, os.path.join(args.output_dir, f"model_best.pth"))
                 utils.save_on_master(checkpoint, os.path.join(args.output_dir, "checkpoint.pth"))
 
