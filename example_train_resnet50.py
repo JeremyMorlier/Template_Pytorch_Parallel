@@ -368,6 +368,7 @@ def main(args) :
             scaler.load_state_dict(checkpoint["scaler"])
 
     # Main Training Loop
+    best_acc1 = 0.0
     for epoch in range(args.start_epoch, args.epochs):
 
             if utils.is_main_process() :
@@ -404,11 +405,12 @@ def main(args) :
                     checkpoint["scaler"] = scaler.state_dict()
                 if utils.is_main_process() :
                     checkpoint["wandb_run_id"] = logger.id
+
                 if eval_acc1 >= best_acc1 :
                     best_acc1 = eval_acc1
                     utils.save_on_master(checkpoint, os.path.join(args.output_dir, f"model_best.pth"))
                 utils.save_on_master(checkpoint, os.path.join(args.output_dir, "checkpoint.pth"))
-
+    logger.log({"best_acc1": best_acc1})
     print("Training Finished")
     # Close Logger
     if utils.is_main_process():
